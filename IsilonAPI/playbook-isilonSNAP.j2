@@ -1,0 +1,6 @@
+{
+  "name": "API snapshot from ansible",
+  "path": "/ifs/data",
+  "expires": {{ (ansible_date_time.epoch | int)  + ( 86400 * 3 ) }}
+}
+

@@ -1,0 +1,9 @@
+- hosts: isilon
+  tasks:
+    - name: check isilon status
+      command: isi auth users list
+      register: command_results
+      changed_when: command_results.rc != 0
+    
+    - debug:
+         msg="{{ command_results.stdout }}" 

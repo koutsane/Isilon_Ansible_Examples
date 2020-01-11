@@ -1,0 +1,54 @@
+-
+  name: Isilon URI session id
+  hosts: isilon82DC1
+
+  tasks:
+    - name: get isilon API session IDs
+      uri:
+        url: https://{{ansible_host}}:8080/session/1/session
+        method: POST
+        validate_certs: no
+        body_format: json
+        body:
+          {
+          username: ansible,
+          password: password01,
+          services: ["platform", "namespace"]
+          }
+        status_code: 201
+      register: results_login
+    - debug:
+         msg="{{ results_login }}"
+
+
+    - name: Create snapshot on isilon
+      uri:
+        url: https://{{ansible_host}}:8080/platform/1/snapshot/snapshots
+        method: POST
+        return_content: no
+        validate_certs: no
+        headers:
+          Cookie: "isisessid={{ results_login.cookies.isisessid }}"
+          X-CSRF-Token: "{{ results_login.cookies.isicsrf }}"
+          referer: "https://{{ansible_host}}:8080"
+        body_format: json
+        body: '{{ lookup("template", "playbook-isilonSNAP.j2") }}'
+        status_code: 201
+      register: results_cookie
+    - debug:
+         msg="{{ results_cookie }}"
+
+    
+    - name: Delete isilon API session IDs
+      uri:
+        url: https://{{ansible_host}}:8080/session/1/session
+        method: DELETE
+        validate_certs: no
+        headers:
+          Cookie: "isisessid={{ results_login.cookies.isisessid }}"
+          X-CSRF-Token: "{{ results_login.cookies.isicsrf }}"
+          referer: "https://{{ansible_host}}:8080"
+        status_code: 204
+      register: results_DEL_cookie
+    - debug:
+         msg="{{ results_DEL_cookie }}"

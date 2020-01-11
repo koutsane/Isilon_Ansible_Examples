@@ -1,0 +1,67 @@
+-
+  name: Isilon URI  basic auth
+  hosts: isilon
+  tasks:
+    - name: test isilon API basic authentication
+      uri: 
+        url: https://192.168.11.83:8080/platform/1/auth/id
+        method: GET
+        user: ansible
+        password: password01
+        validate_certs: no
+        force_basic_auth: yes
+      register: results_basic
+    - debug:
+         msg="{{ results_basic }}" 
+
+-
+  name: Isilon URI session id
+  hosts: isilon
+  tasks:
+    - name: get isilon API session IDs
+      uri:
+        url: https://192.168.11.82:8080/session/1/session
+        method: POST
+        validate_certs: no
+        body_format: json
+#        body: "{{ lookup('file','/root/auth.json') }}"
+        body:
+          {
+          username: ansible,
+          password: password01,
+          services: ["platform", "namespace"]
+	}
+        status_code: 201
+      register: results_login
+    - debug:
+         msg="{{ results_login }}"
+    
+    - name: get isilon API session IDs
+      uri:
+        url: https://192.168.11.82:8080/platform/1/auth/id
+        method: GET
+        return_content: no
+        validate_certs: no
+        body_format: json
+        headers:
+          Cookie: "isisessid={{ results_login.cookies.isisessid }}"
+          X-CSRF-Token: "{{ results_login.cookies.isicsrf }}"
+          referer: "https://192.168.11.82:8080"
+      register: results_cookie
+    - debug:
+         msg="{{ results_cookie }}"
+    
+    - name: Delete isilon API session IDs
+      uri:
+        url: https://192.168.11.82:8080/session/1/session
+        method: DELETE
+        validate_certs: no
+#        body_format: json
+        headers:
+          Cookie: "isisessid={{ results_login.cookies.isisessid }}"
+          X-CSRF-Token: "{{ results_login.cookies.isicsrf }}"
+          referer: "https://192.168.11.82:8080"
+        status_code: 204
+      register: results_DEL_cookie
+    - debug:
+         msg="{{ results_DEL_cookie }}"

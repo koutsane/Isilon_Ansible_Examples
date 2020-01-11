@@ -1,0 +1,72 @@
+---
+- name: Apply Isilon prod shares and permissions to DR Isilon
+  hosts:
+    isilon82DC2
+  gather_facts: yes
+  vars:
+    IsilonPROD: isilon82DC1
+    IsilonDR: isilon82DC2
+    DateTimeStamp: "{{ansible_date_time.date}}.{{ansible_date_time.time}}"
+    SMBCHECK_script: "~/playarea/Isilon/IsilonSSH/playbook-isilonSyncSMBshares.sh check"
+    SMBPERM_script: "~/playarea/Isilon/IsilonSSH/playbook-isilonSyncSMBshares.sh perm"
+    SMBCREATE_script: "~/playarea/Isilon/IsilonSSH/playbook-isilonSyncSMBshares.sh create"
+    SyncSMBsharesLog: "~/playarea/Isilon/IsilonSSH/auditlogs/{{DateTimeStamp}}.SyncSMBshares.log"
+
+  tasks:
+
+    - name: Check for existing and missing SMB shares 
+      local_action: shell {{SMBCHECK_script}} {{IsilonPROD}} {{IsilonDR}}
+      when: inventory_hostname == IsilonDR
+      run_once: true
+      register: SMBCHECK_output
+      failed_when: SMBCHECK_output.stdout == ""
+      changed_when: '"MISSING:" in SMBCHECK_output.stdout'
+#    - debug:
+#        msg="{{SMBCHECK_output.stdout}}"
+#      when: inventory_hostname == IsilonDR
+    
+    - name: Sync missing shares to DR Isilon
+      local_action: shell {{SMBCREATE_script}} {{IsilonPROD}} {{IsilonDR}} '{{SMBCHECK_output.stdout_lines | to_json }}'
+      when: inventory_hostname == IsilonDR
+      run_once: true
+      register: SMBCREATE_output
+      changed_when: '"MISSING:" in SMBCHECK_output.stdout'
+      notify: Log create share action
+#    - debug:
+#        msg="{{SMBCREATE_output.stdout_lines}}"
+#      when: inventory_hostname == IsilonDR
+
+    - name: Execute create share log handler
+      meta: flush_handlers
+
+    - name: Re-check for existing and missing SMB shares 
+      local_action: shell {{SMBCHECK_script}} {{IsilonPROD}} {{IsilonDR}}
+      when: inventory_hostname == IsilonDR
+      run_once: true
+      register: SMBRECHECK_output
+      failed_when: SMBRECHECK_output.stdout == ""
+      changed_when: false
+#    - debug:
+#        msg="{{SMBRECHECK_output.stdout}}"
+#      when: inventory_hostname == IsilonDR
+    
+    - name: Sync Isilon share permissions to DR Isilon
+      local_action: shell {{SMBPERM_script}} {{IsilonPROD}} {{IsilonDR}} '{{SMBRECHECK_output.stdout_lines | to_json }}'
+      when: inventory_hostname == IsilonDR
+      run_once: true
+      register: SMBPERM_output
+      changed_when: '"**WARN**" in SMBPERM_output.stdout'
+      notify: Log added permission action
+#    - debug:
+#        msg="{{SMBPERM_output.stdout_lines}}"
+#      when: inventory_hostname == IsilonDR
+      
+    - name: Execute permission log handler
+      meta: flush_handlers
+
+  handlers:
+    - name: Log create share action
+      local_action: copy content={{ SMBCREATE_output.stdout }}  dest={{ SyncSMBsharesLog }}
+  
+    - name: Log added permission action
+      local_action: lineinfile path={{ SyncSMBsharesLog }} line={{ SMBPERM_output.stdout }} create=yes

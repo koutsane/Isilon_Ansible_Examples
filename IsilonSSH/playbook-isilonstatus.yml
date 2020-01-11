@@ -1,0 +1,10 @@
+- hosts: isilon82DC1
+  tasks:
+    - name: check isilon status
+      command: isi status
+      register: command_results
+      ###changed_when: "'Cluster Health:     [  OK ]' not in command_results.stdout or '| OK  |' not in command_results.stdout"
+      changed_when: "'[  OK ]'not in command_results.stdout"
+    
+#   - debug:
+#       msg="{{ command_results.stdout }}" 

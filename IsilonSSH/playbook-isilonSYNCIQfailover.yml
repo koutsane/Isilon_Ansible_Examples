@@ -1,0 +1,37 @@
+---
+- name: Isilon SYNCIQ failover
+  hosts:
+    AD2016
+    isilon82DC1
+    isilon82DC2
+  gather_facts: no
+  vars:
+    dnsServer: AD2016
+    zoneName: kryptolula.local
+    IsilonPROD: isilon82DC1
+    IsilonDR: isilon82DC2
+    IsilonPRODcname: isilonprod
+    IsilonDRdelegation: pipelineDR.kryptolula.local
+
+  tasks:
+    - name: Change Isilon Production CNAME to DR delegation
+      win_dns_record:
+        name: "{{ IsilonPRODcname }}"
+        type: "CNAME"
+        state: present
+        zone: "{{ zoneName }}"
+        value: "{{ IsilonDRdelegation }}"
+      register: results_dns_update
+      when: inventory_hostname == dnsServer
+    - debug:
+        msg="{{results_dns_update}}"
+      when: inventory_hostname == dnsServer
+
+    - name: Enable writes on Isilon DR target
+      shell: for i in `isi sync target list | grep "disabled" | awk '{print $1}'`; do isi sync recovery allow-write ${i} ; done
+      register: results_enable_writes
+      when: inventory_hostname == IsilonDR 
+    - debug:
+        msg="{{results_dns_update}}"
+      when: inventory_hostname == IsilonDR
+
